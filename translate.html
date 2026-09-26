@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#EDF0F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F141C" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<title>나만의 번역기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF0F4; --surface:#FFFFFF; --ink:#18202E; --muted:#667085; --line:#D5DAE2;
+  --them:#2E5AAC; --them-soft:#E4EBF8; --me:#177A63; --me-soft:#DDF1EB;
+  --rec:#CF3F36; --on-accent:#FFFFFF;
+  color-scheme:light dark;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0F141C; --surface:#18202C; --ink:#E8ECF2; --muted:#98A2B3; --line:#2A3442;
+    --them:#86A9F2; --them-soft:#1C2842; --me:#5ECBAE; --me-soft:#15322B;
+    --rec:#FF6A60; --on-accent:#0F141C;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"IBM Plex Sans KR",system-ui,-apple-system,"Noto Sans KR","Malgun Gothic",sans-serif;
+  font-size:16px;line-height:1.5}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+
+/* 언어 선택 바 */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);
+  display:flex;align-items:flex-end;gap:8px;padding:10px 14px 12px;border-bottom:1px solid var(--line)}
+.langs{flex:1;display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:end}
+.lang{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lang>span{font-size:.8rem;font-weight:700}
+.lang.them>span{color:var(--them)}
+.lang.me>span{color:var(--me)}
+.select-wrap{position:relative}
+.select-wrap::after{content:"▾";position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted)}
+select{appearance:none;-webkit-appearance:none;width:100%;background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;padding:10px 26px 10px 12px;font-weight:600;min-height:46px}
+.icon-btn{width:46px;height:46px;border-radius:10px;border:1px solid var(--line);background:var(--surface);
+  font-size:1.2rem;display:grid;place-items:center;flex:none}
+.icon-btn:disabled,select:disabled{opacity:.45;cursor:not-allowed}
+
+.banner{margin:0;padding:10px 14px;font-weight:600;font-size:.92rem;background:var(--rec);color:#fff}
+
+/* 상대방 / 나 영역 */
+.side{background:var(--surface);margin:12px 14px;border-radius:16px;padding:14px;border-top:4px solid var(--c)}
+.side.them{--c:var(--them);--soft:var(--them-soft)}
+.side.me{--c:var(--me);--soft:var(--me-soft)}
+.side-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
+.side-head h2{margin:0;font-size:1rem;color:var(--c)}
+.status{font-size:.85rem;color:var(--muted);text-align:right}
+.status .rec{color:var(--rec);font-weight:700}
+.transcript{background:var(--soft);border-radius:12px;padding:12px;min-height:112px;
+  max-height:32vh;max-height:32dvh;overflow-y:auto;overscroll-behavior:contain}
+.line+.line{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.orig{margin:0;font-size:.88rem;color:var(--muted);overflow-wrap:anywhere}
+.trans{margin:2px 0 0;font-size:1.3rem;font-weight:700;line-height:1.4;overflow-wrap:anywhere}
+.trans.wait{font-size:1rem;font-weight:400;color:var(--muted)}
+.trans.fail{font-size:1rem;font-weight:500;color:var(--rec)}
+.interim{margin:8px 0 0;color:var(--muted);font-style:italic;overflow-wrap:anywhere}
+.empty{margin:0;color:var(--muted);font-size:.95rem}
+.actions{display:grid;grid-template-columns:1.4fr 1fr;gap:10px;margin-top:12px}
+.btn{min-height:58px;border-radius:14px;border:0;font-weight:700;font-size:1.05rem;padding:0 10px}
+.btn.primary{background:var(--c);color:var(--on-accent)}
+.btn.primary.live{background:var(--rec);color:#fff;animation:pulse 1.6s ease-out infinite}
+.btn.secondary{background:transparent;border:2px solid var(--c);color:var(--c)}
+.btn:disabled{opacity:.4;cursor:not-allowed;animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(207,63,54,.5)}100%{box-shadow:0 0 0 14px rgba(207,63,54,0)}}
+@media (prefers-reduced-motion:reduce){.btn.primary.live{animation:none}}
+:focus-visible{outline:3px solid var(--them);outline-offset:2px}
+
+/* 기록 */
+.log{margin:22px 14px 32px}
+.log h2{margin:0 0 10px;font-size:1.05rem}
+.log-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:.9rem}
+.chip.danger{color:var(--rec)}
+#logList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px}
+.log-empty{color:var(--muted);font-size:.95rem}
+.entry{background:var(--surface);border-radius:12px;padding:12px 14px;border-left:4px solid var(--c)}
+.entry.them{--c:var(--them)}
+.entry.me{--c:var(--me)}
+.entry-meta{display:flex;justify-content:space-between;gap:8px;font-size:.82rem;color:var(--muted);margin-bottom:6px}
+.entry-meta b{color:var(--c)}
+.entry .trans{font-size:1rem;margin-bottom:6px}
+.entry-tools{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.mini{min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:transparent;font-size:.85rem;font-weight:600}
+
+/* 설정 */
+dialog{width:min(92vw,440px);border:0;border-radius:16px;background:var(--surface);color:var(--ink);padding:18px}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog h2{margin:0 0 14px;font-size:1.1rem}
+.field{margin-bottom:18px}
+.field>.label{display:block;font-weight:700;margin-bottom:6px}
+.field small{display:block;color:var(--muted);font-size:.82rem;margin-top:4px}
+.check,.radio{display:flex;gap:10px;align-items:center;min-height:40px}
+.check input,.radio input{width:22px;height:22px;accent-color:var(--them)}
+input[type=password],input[type=text]{width:100%;min-height:44px;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--bg)}
+input[type=range]{width:100%;accent-color:var(--them)}
+.dialog-actions{display:flex;justify-content:flex-end}
+
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);
+  max-width:92vw;width:max-content;background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:12px;
+  font-size:.92rem;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:20}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="langs">
+    <label class="lang them"><span>상대 언어</span><div class="select-wrap"><select id="theirLang"></select></div></label>
+    <button class="icon-btn" id="swap" type="button" aria-label="상대 언어와 내 언어 바꾸기">⇄</button>
+    <label class="lang me"><span>내 언어</span><div class="select-wrap"><select id="myLang"></select></div></label>
+  </div>
+  <button class="icon-btn" id="openSettings" type="button" aria-label="설정">⚙</button>
+</header>
+
+<p class="banner" id="offline" hidden>인터넷이 끊겼어요. 연결되면 다시 번역할 수 있어요.</p>
+<p class="banner" id="notice" hidden></p>
+
+<main>
+  <section class="side them" aria-label="상대방">
+    <div class="side-head"><h2>상대방</h2><span class="status" id="themStatus" aria-live="polite"></span></div>
+    <div class="transcript" id="themBox"></div>
+    <div class="actions">
+      <button class="btn primary" id="themBtn" type="button">말듣기</button>
+      <button class="btn secondary" id="replayBtn" type="button" disabled>다시 듣기</button>
+    </div>
+  </section>
+
+  <section class="side me" aria-label="나">
+    <div class="side-head"><h2>나</h2><span class="status" id="meStatus" aria-live="polite"></span></div>
+    <div class="transcript" id="meBox"></div>
+    <div class="actions">
+      <button class="btn primary" id="meBtn" type="button">내가 말하기</button>
+      <button class="btn secondary" id="speakBtn" type="button" disabled>번역 말하기</button>
+    </div>
+  </section>
+
+  <section class="log">
+    <h2>대화 기록</h2>
+    <div class="log-tools">
+      <button class="chip" id="saveText" type="button">텍스트 저장</button>
+      <button class="chip" id="saveAudio" type="button">녹음 저장</button>
+      <button class="chip danger" id="clearAll" type="button">기록 지우기</button>
+    </div>
+    <ol id="logList"></ol>
+  </section>
+</main>
+
+<dialog id="settings">
+  <h2>설정</h2>
+  <div class="field">
+    <label class="check"><input type="checkbox" id="optRecord"> 대화할 때 녹음도 하기</label>
+    <small>음성인식이 잘 안 되면 이걸 꺼 보세요. 일부 폰은 녹음과 음성인식을 동시에 못 해요.</small>
+  </div>
+  <div class="field">
+    <span class="label">다시 듣기 버튼으로 들을 소리</span>
+    <label class="radio"><input type="radio" name="replay" value="tts"> 번역을 내 언어로 읽어주기</label>
+    <label class="radio"><input type="radio" name="replay" value="audio"> 상대 목소리 녹음 그대로</label>
+  </div>
+  <div class="field">
+    <label class="label" for="optRate">읽는 속도 <span id="rateVal"></span></label>
+    <input type="range" id="optRate" min="0.6" max="1.4" step="0.1">
+  </div>
+  <div class="field">
+    <label class="label" for="optKey">구글 Cloud 번역 API 키 (선택)</label>
+    <input type="password" id="optKey" autocomplete="off" placeholder="비워두면 무료 구글 번역 주소 사용">
+    <small>무료 주소가 막히거나 느릴 때만 넣으세요. 키는 이 폰 안에만 저장돼요.</small>
+  </div>
+  <div class="dialog-actions"><button class="chip" id="closeSettings" type="button">닫기</button></div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+
+/* 언어 목록: rec = 음성인식/읽기 코드, tr = 번역 코드 */
+const LANGS = [
+  {id:'ko', name:'한국어', rec:'ko-KR', tr:'ko'},
+  {id:'en', name:'영어', rec:'en-US', tr:'en'},
+  {id:'ja', name:'일본어', rec:'ja-JP', tr:'ja'},
+  {id:'zh-CN', name:'중국어(간체)', rec:'zh-CN', tr:'zh-CN'},
+  {id:'zh-TW', name:'중국어(대만)', rec:'zh-TW', tr:'zh-TW'},
+  {id:'vi', name:'베트남어', rec:'vi-VN', tr:'vi'},
+  {id:'th', name:'태국어', rec:'th-TH', tr:'th'},
+  {id:'id', name:'인도네시아어', rec:'id-ID', tr:'id'},
+  {id:'ms', name:'말레이어', rec:'ms-MY', tr:'ms'},
+  {id:'tl', name:'필리핀어', rec:'fil-PH', tr:'tl'},
+  {id:'mn', name:'몽골어', rec:'mn-MN', tr:'mn'},
+  {id:'uz', name:'우즈베크어', rec:'uz-UZ', tr:'uz'},
+  {id:'ne', name:'네팔어', rec:'ne-NP', tr:'ne'},
+  {id:'km', name:'크메르어', rec:'km-KH', tr:'km'},
+  {id:'hi', name:'힌디어', rec:'hi-IN', tr:'hi'},
+  {id:'ru', name:'러시아어', rec:'ru-RU', tr:'ru'},
+  {id:'es', name:'스페인어', rec:'es-ES', tr:'es'},
+  {id:'fr', name:'프랑스어', rec:'fr-FR', tr:'fr'},
+  {id:'de', name:'독일어', rec:'de-DE', tr:'de'},
+  {id:'it', name:'이탈리아어', rec:'it-IT', tr:'it'},
+  {id:'pt', name:'포르투갈어', rec:'pt-BR', tr:'pt'},
+  {id:'tr', name:'튀르키예어', rec:'tr-TR', tr:'tr'},
+  {id:'ar', name:'아랍어', rec:'ar-SA', tr:'ar'}
+];
+const L = id => LANGS.find(x => x.id === id) || LANGS[0];
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+/* 설정 저장 */
+const DEF = {their:'en', my:'ko', record:true, replay:'tts', rate:1, apiKey:''};
+let S;
+try { S = Object.assign({}, DEF, JSON.parse(localStorage.getItem('mt-settings') || '{}')); }
+catch { S = Object.assign({}, DEF); }
+const saveS = () => { try { localStorage.setItem('mt-settings', JSON.stringify(S)); } catch {} };
+
+/* 기록 저장소 (IndexedDB: 텍스트 + 녹음 파일) */
+let db = null;
+function dbOpen(){
+  return new Promise(res => {
+    try {
+      const r = indexedDB.open('my-translator', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('sessions', {keyPath:'id'});
+      r.onsuccess = () => { db = r.result; res(); };
+      r.onerror = () => res();
+    } catch { res(); }
+  });
+}
+function tx(mode, fn){
+  return new Promise(res => {
+    if (!db) return res(null);
+    try {
+      const t = db.transaction('sessions', mode);
+      const req = fn(t.objectStore('sessions'));
+      t.oncomplete = () => res(req ? req.result : null);
+      t.onerror = () => res(null);
+    } catch { res(null); }
+  });
+}
+const dbAll = () => tx('readonly', st => st.getAll());
+const dbPut = r => tx('readwrite', st => st.put(r));
+const dbClear = () => tx('readwrite', st => st.clear());
+
+/* 상태 */
+let sessions = [];
+let live = null;
+const last = {them:null, me:null};
+let playing = null, playToken = 0, audioEl = null;
+
+/* 공통 도구 */
+let toastT;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 4000);
+}
+const pad = n => String(n).padStart(2, '0');
+function fmtShort(iso){ const d = new Date(iso); return `${pad(d.getMonth()+1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function fmtFull(iso){ const d = new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+function stamp(d = new Date()){ return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`; }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function download(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+function para(cls, text){ const p = document.createElement('p'); p.className = cls; p.textContent = text; return p; }
+
+/* 번역 (구글) */
+async function translate(text, sl, tl){
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const key = (S.apiKey || '').trim();
+    if (key){
+      const res = await fetch('https://translation.googleapis.com/language/translate/v2?key=' + encodeURIComponent(key), {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({q:text, source:sl, target:tl, format:'text'}), signal: ctrl.signal
+      });
+      if (!res.ok) throw new Error('api ' + res.status);
+      const j = await res.json();
+      return j.data.translations[0].translatedText;
+    }
+    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&dt=t'
+      + '&sl=' + encodeURIComponent(sl) + '&tl=' + encodeURIComponent(tl) + '&q=' + encodeURIComponent(text);
+    const res = await fetch(url, {signal: ctrl.signal});
+    if (!res.ok) throw new Error('http ' + res.status);
+    const j = await res.json();
+    return (j[0] || []).map(x => (x && x[0]) ? x[0] : '').join('');
+  } finally { clearTimeout(timer); }
+}
+
+/* 화면의 번역 상자 */
+const box = {them: $('#themBox'), me: $('#meBox')};
+const emptyText = {
+  them:'말듣기를 누르면 상대방 말이 내 언어로 번역돼요.',
+  me:'내가 말하기를 누르면 내 말이 상대 언어로 번역돼요.'
+};
+function resetBox(who, text){ box[who].innerHTML = ''; box[who].append(para('empty', text || emptyText[who])); }
+function addLineEl(who, line){
+  const b = box[who];
+  const e = b.querySelector('.empty'); if (e) e.remove();
+  const d = document.createElement('div'); d.className = 'line';
+  const t = para('trans wait', '번역하는 중…');
+  d.append(para('orig', line.o), t);
+  b.insertBefore(d, b.querySelector('.interim'));
+  b.scrollTop = b.scrollHeight;
+  return t;
+}
+function showInterim(who, text){
+  const b = box[who];
+  let im = b.querySelector('.interim');
+  if (!text){ if (im) im.remove(); return; }
+  const e = b.querySelector('.empty'); if (e) e.remove();
+  if (!im){ im = para('interim', ''); b.append(im); }
+  im.textContent = text;
+  b.scrollTop = b.scrollHeight;
+}
+
+/* 녹음 */
+async function startRecorder(s){
+  if (!navigator.mediaDevices || !window.MediaRecorder){ toast('이 브라우저는 녹음을 지원하지 않아요. 번역만 할게요.'); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true}});
+    const mime = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'].find(m => MediaRecorder.isTypeSupported(m));
+    const mr = new MediaRecorder(stream, mime ? {mimeType:mime} : undefined);
+    const chunks = [];
+    mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    mr.start(1000);
+    s.recorder = {mr, stream, chunks};
+  } catch (err){
+    toast(err && err.name === 'NotAllowedError' ? '마이크 권한이 없어서 녹음을 못 해요.' : '녹음을 시작하지 못했어요. 번역만 할게요.');
+  }
+}
+function stopRecorder(s){
+  return new Promise(res => {
+    const r = s.recorder; if (!r) return res(null);
+    s.recorder = null;
+    const done = () => {
+      r.stream.getTracks().forEach(t => t.stop());
+      const blob = r.chunks.length ? new Blob(r.chunks, {type: r.mr.mimeType || 'audio/webm'}) : null;
+      res(blob && blob.size ? blob : null);
+    };
+    if (r.mr.state === 'inactive') return done();
+    r.mr.onstop = done;
+    try { r.mr.stop(); } catch { done(); }
+  });
+}
+function discardRecorder(s){
+  const r = s.recorder; if (!r) return;
+  s.recorder = null;
+  try { r.mr.onstop = null; if (r.mr.state !== 'inactive') r.mr.stop(); } catch {}
+  r.stream.getTracks().forEach(t => t.stop());
+}
+
+/* 화면 켜짐 유지 */
+let wakeLock = null;
+async function keepAwake(on){
+  try {
+    if (on && 'wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+    else if (!on && wakeLock){ await wakeLock.release(); wakeLock = null; }
+  } catch {}
+}
+
+/* 듣기 시작 / 멈춤 */
+async function start(who){
+  if (!SR){ toast('이 브라우저는 음성인식이 안 돼요. 안드로이드 크롬으로 열어주세요.'); return; }
+  if (!navigator.onLine){ toast('인터넷이 연결되어 있어야 번역할 수 있어요.'); return; }
+  if (live) return;
+  const src = who === 'them' ? S.their : S.my;
+  const tgt = who === 'them' ? S.my : S.their;
+  if (src === tgt){ toast('상대 언어와 내 언어가 같아요. 다른 언어를 골라주세요.'); return; }
+  stopPlayback();
+  const s = live = {id:Date.now(), who, t0:new Date().toISOString(), src, tgt, lines:[], pending:[],
+    interim:'', lastFinal:'', lastFinalAt:0, errs:0, stopping:false, fatal:false, finished:false, recActive:false, rec:null, recorder:null};
+  resetBox(who, '듣고 있어요. 말씀하세요.');
+  setUI();
+  if (S.record){
+    await startRecorder(s);
+    if (s.finished){ discardRecorder(s); return; }
+    setUI();
+  }
+  keepAwake(true);
+  listen(s);
+}
+
+function listen(s){
+  if (live !== s || s.stopping || s.finished) return;
+  const r = new SR();
+  r.lang = L(s.src).rec;
+  r.interimResults = true;
+  r.continuous = false;          // 안드로이드에서 안정적: 한 문장씩 듣고 자동으로 다시 시작
+  r.maxAlternatives = 1;
+  s.rec = r;
+
+  r.onresult = e => {
+    let interim = '', fin = '';
+    for (let i = e.resultIndex; i < e.results.length; i++){
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) fin += t; else interim += t;
+    }
+    s.errs = 0;
+    if (fin.trim()){ s.interim = ''; showInterim(s.who, ''); addFinal(s, fin.trim()); }
+    else { s.interim = interim; showInterim(s.who, interim.trim()); }
+  };
+
+  r.onerror = e => {
+    const err = e.error;
+    if (err === 'no-speech' || err === 'aborted') return;
+    if (err === 'not-allowed' || err === 'service-not-allowed'){
+      toast('마이크 권한이 꺼져 있어요. 주소창 왼쪽 아이콘을 눌러 마이크를 허용해주세요.'); s.fatal = true; return;
+    }
+    if (err === 'audio-capture'){
+      if (s.recorder){ discardRecorder(s); s.recDropped = true; toast('이 폰은 녹음과 음성인식을 동시에 못 해요. 이번엔 녹음 없이 번역만 할게요.'); setUI(); return; }
+      toast('마이크를 쓸 수 없어요. 다른 앱이 마이크를 쓰고 있는지 확인해주세요.'); s.fatal = true; return;
+    }
+    if (err === 'language-not-supported'){ toast(`${L(s.src).name} 음성인식은 이 폰에서 지원되지 않아요.`); s.fatal = true; return; }
+    s.errs++;
+    if (err === 'network') toast('음성인식 서버에 연결하지 못했어요. 인터넷을 확인해주세요.');
+    if (s.errs >= 4){ toast('음성인식이 계속 실패해서 멈췄어요. 잠시 뒤 다시 눌러주세요.'); s.fatal = true; }
+  };
+
+  r.onend = () => {
+    s.recActive = false;
+    if (s.interim.trim()){ addFinal(s, s.interim.trim()); s.interim = ''; showInterim(s.who, ''); }
+    if (live !== s) return;
+    if (s.stopping || s.fatal){ finish(s); return; }
+    setTimeout(() => listen(s), 120);
+  };
+
+  try { r.start(); s.recActive = true; }
+  catch {
+    s.errs++;
+    if (s.errs >= 4){ s.fatal = true; finish(s); toast('음성인식을 시작하지 못했어요.'); }
+    else setTimeout(() => listen(s), 300);
+  }
+}
+
+function addFinal(s, text){
+  const now = Date.now();
+  if (text === s.lastFinal && now - s.lastFinalAt < 2000) return;   // 같은 문장 중복 방지
+  s.lastFinal = text; s.lastFinalAt = now;
+  const line = {o:text, t:''};
+  s.lines.push(line);
+  const el = addLineEl(s.who, line);
+  const p = translate(text, L(s.src).tr, L(s.tgt).tr)
+    .then(t => { line.t = t; el.className = 'trans'; el.textContent = t; })
+    .catch(() => { line.t = ''; el.className = 'trans fail'; el.textContent = '번역하지 못했어요. 기록에서 다시 번역할 수 있어요.'; });
+  s.pending.push(p);
+}
+
+function stop(){
+  const s = live; if (!s || s.stopping) return;
+  s.stopping = true; setUI();
+  if (s.recActive && s.rec){
+    try { s.rec.stop(); } catch { finish(s); }
+    setTimeout(() => { if (!s.finished) finish(s); }, 3000);   // 혹시 멈춤 신호가 안 오면
+  } else finish(s);
+}
+
+async function finish(s){
+  if (s.finished) return;
+  s.finished = true; s.stopping = true;
+  try { if (s.rec) s.rec.abort(); } catch {}
+  keepAwake(false);
+  setUI();
+  const audio = await stopRecorder(s);
+  await Promise.allSettled(s.pending);
+  if (live === s) live = null;
+  const lines = s.lines.map(l => ({o:l.o, t:l.t || ''}));
+  if (!lines.length && !audio){
+    resetBox(s.who);
+    toast('들린 말이 없어요. 폰을 말하는 사람 가까이 대고 다시 해보세요.');
+    setUI(); return;
+  }
+  const rec = {id:s.id, who:s.who, t0:s.t0, src:s.src, tgt:s.tgt, lines, audio: audio || null};
+  sessions.unshift(rec);
+  last[s.who] = rec;
+  await dbPut(rec);
+  renderLog(); setUI();
+}
+
+/* 소리 재생 (블루투스/이어폰이 연결되면 안드로이드가 알아서 그쪽으로 보냄) */
+let voices = [];
+function loadVoices(){ try { voices = speechSynthesis.getVoices() || []; } catch {} }
+if ('speechSynthesis' in window){ loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+function pickVoice(code){
+  const c = code.toLowerCase(), p = c.split('-')[0];
+  const norm = v => (v.lang || '').replace('_','-').toLowerCase();
+  return voices.find(v => norm(v) === c) || voices.find(v => norm(v) === p || norm(v).startsWith(p + '-')) || null;
+}
+function splitText(t){
+  const parts = t.match(/[^.!?。！？\n]+[.!?。！？]*\s*/g) || [t];
+  const out = []; let buf = '';
+  for (const s of parts){ if (buf && (buf + s).length > 180){ out.push(buf); buf = s; } else buf += s; }
+  if (buf.trim()) out.push(buf);
+  return out.flatMap(x => x.length <= 220 ? [x] : (x.match(/[\s\S]{1,200}/g) || []));
+}
+function stopPlayback(){
+  playToken++;
+  try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch {}
+  if (audioEl){ try { audioEl.pause(); } catch {} audioEl = null; }
+  if (playing){ playing = null; setUI(); }
+}
+function speak(text, langId, kind){
+  if (!('speechSynthesis' in window)){ toast('이 브라우저는 소리 내어 읽기를 지원하지 않아요.'); return; }
+  stopPlayback();
+  const my = ++playToken;
+  const lang = L(langId);
+  playing = kind; setUI();
+  setTimeout(() => {
+    if (my !== playToken) return;
+    if (!voices.length) loadVoices();
+    const v = pickVoice(lang.rec);
+    if (!v && voices.length) toast(`이 폰에 ${lang.name} 읽기 음성이 없으면 소리가 안 날 수 있어요. 휴대폰 설정의 '텍스트 음성 변환'에서 언어를 추가해 보세요.`);
+    const parts = splitText(text);
+    parts.forEach((p, i) => {
+      const u = new SpeechSynthesisUtterance(p);
+      u.lang = lang.rec; if (v) u.voice = v; u.rate = S.rate;
+      if (i === parts.length - 1) u.onend = u.onerror = () => { if (my === playToken){ playing = null; setUI(); } };
+      speechSynthesis.speak(u);
+    });
+  }, 80);
+}
+function playBlob(blob, kind){
+  stopPlayback();
+  const my = ++playToken;
+  const url = URL.createObjectURL(blob);
+  const a = new Audio(url); audioEl = a;
+  let ended = false;
+  const end = failed => {
+    if (ended) return; ended = true;
+    URL.revokeObjectURL(url);
+    if (my === playToken){ audioEl = null; playing = null; setUI(); }
+    if (failed) toast('녹음을 재생하지 못했어요.');
+  };
+  a.onended = () => end(false);
+  a.onerror = () => end(true);
+  a.play().then(() => { if (my === playToken){ playing = kind; setUI(); } }).catch(() => end(true));
+}
+function transText(r){ return r.lines.map(l => l.t).filter(Boolean).join(' '); }
+
+function replay(){
+  const r = last.them; if (!r) return;
+  if (S.replay === 'audio'){
+    if (r.audio) return playBlob(r.audio, 'replay');
+    toast('저장된 녹음이 없어서 번역을 읽어드릴게요.');
+  }
+  const text = transText(r);
+  if (!text) return toast('다시 들을 번역이 없어요.');
+  speak(text, r.tgt, 'replay');
+}
+function speakMine(){
+  const r = last.me; if (!r) return;
+  const text = transText(r);
+  if (!text) return toast('읽어줄 번역이 없어요.');
+  speak(text, r.tgt, 'speak');
+}
+
+/* 화면 상태 갱신 */
+function setUI(){
+  const on = navigator.onLine;
+  $('#offline').hidden = on;
+  const cfg = {
+    them:{btn:'#themBtn', st:'#themStatus', idle:'말듣기', busy:'그만듣기', listening:'상대 말을 듣는 중'},
+    me:{btn:'#meBtn', st:'#meStatus', idle:'내가 말하기', busy:'그만 말하기', listening:'내 말을 듣는 중'}
+  };
+  for (const who of ['them','me']){
+    const c = cfg[who], btn = $(c.btn), st = $(c.st);
+    const mine = !!live && live.who === who;
+    btn.textContent = mine ? c.busy : c.idle;
+    btn.classList.toggle('live', mine && !live.stopping);
+    btn.disabled = mine ? live.stopping : (!on || !!live || !SR);
+    st.textContent = '';
+    if (mine){
+      st.textContent = live.stopping ? '마무리하는 중…' : c.listening;
+      if (live.recorder && !live.stopping){ const d = document.createElement('span'); d.className = 'rec'; d.textContent = ' ● 녹음 중'; st.append(d); }
+    }
+  }
+  const rb = $('#replayBtn'), sb = $('#speakBtn');
+  rb.textContent = playing === 'replay' ? '그만 재생' : '다시 듣기';
+  sb.textContent = playing === 'speak' ? '그만 재생' : '번역 말하기';
+  rb.disabled = !!live || !(last.them && (last.them.audio || transText(last.them)));
+  sb.disabled = !!live || !(last.me && transText(last.me));
+  const lock = !!live;
+  $('#theirLang').disabled = lock; $('#myLang').disabled = lock; $('#swap').disabled = lock;
+}
+
+/* 기록 목록 */
+function renderLog(){
+  const ol = $('#logList'); ol.innerHTML = '';
+  if (!sessions.length){
+    const li = document.createElement('li'); li.className = 'log-empty';
+    li.textContent = '아직 기록이 없어요. 대화를 시작하면 여기에 쌓여요.'; ol.append(li); return;
+  }
+  for (const r of sessions){
+    const li = document.createElement('li'); li.className = 'entry ' + r.who;
+    const meta = document.createElement('div'); meta.className = 'entry-meta';
+    const left = document.createElement('span');
+    const b = document.createElement('b'); b.textContent = r.who === 'them' ? '상대방' : '나';
+    left.append(b, ` ${L(r.src).name} → ${L(r.tgt).name}`);
+    const time = document.createElement('time'); time.textContent = fmtShort(r.t0);
+    meta.append(left, time); li.append(meta);
+    if (!r.lines.length) li.append(para('orig', '알아들은 말이 없어요 (녹음만 있음)'));
+    for (const l of r.lines){ li.append(para('orig', l.o), para('trans', l.t || '번역 없음')); }
+    const tools = document.createElement('div'); tools.className = 'entry-tools';
+    const add = (act, label) => { const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'mini'; bt.dataset.act = act; bt.dataset.id = r.id; bt.textContent = label; tools.append(bt); };
+    if (transText(r)) add('tts', '번역 듣기');
+    if (r.audio){ add('audio', '녹음 듣기'); add('dl', '녹음 받기'); }
+    if (r.lines.some(l => !l.t)) add('retr', '다시 번역');
+    if (tools.children.length) li.append(tools);
+    ol.append(li);
+  }
+}
+function audioName(r){
+  const t = (r.audio && r.audio.type) || '';
+  const ext = t.includes('mp4') ? 'm4a' : t.includes('ogg') ? 'ogg' : 'webm';
+  return `녹음_${stamp(new Date(r.t0))}_${r.who === 'them' ? '상대' : '나'}.${ext}`;
+}
+async function retranslate(r){
+  if (!navigator.onLine) return toast('인터넷이 연결되어 있어야 번역할 수 있어요.');
+  let changed = false;
+  for (const l of r.lines){
+    if (!l.t){ try { l.t = await translate(l.o, L(r.src).tr, L(r.tgt).tr); changed = true; } catch {} }
+  }
+  if (changed){ await dbPut(r); renderLog(); setUI(); toast('다시 번역했어요.'); }
+  else toast('번역하지 못했어요. 인터넷 연결을 확인해주세요.');
+}
+$('#logList').addEventListener('click', e => {
+  const bt = e.target.closest('button[data-act]'); if (!bt) return;
+  const r = sessions.find(x => String(x.id) === bt.dataset.id); if (!r) return;
+  if (live) return toast('듣기를 멈춘 뒤에 재생할 수 있어요.');
+  const act = bt.dataset.act;
+  if (act === 'tts') speak(transText(r), r.tgt, 'log');
+  else if (act === 'audio') playBlob(r.audio, 'log');
+  else if (act === 'dl') download(r.audio, audioName(r));
+  else if (act === 'retr') retranslate(r);
+});
+
+/* 저장 버튼 */
+$('#saveText').onclick = () => {
+  if (!sessions.length) return toast('저장할 기록이 없어요.');
+  const body = [...sessions].reverse().map(r => {
+    const head = `[${fmtFull(r.t0)}] ${r.who === 'them' ? '상대방' : '나'} (${L(r.src).name} → ${L(r.tgt).name})`;
+    const rows = r.lines.length ? r.lines.map(l => `  원문: ${l.o}\n  번역: ${l.t || '(번역 없음)'}`).join('\n') : '  (알아들은 말 없음)';
+    return head + '\n' + rows;
+  }).join('\n\n');
+  const text = '\ufeff나만의 번역기 대화 기록\n저장한 때: ' + fmtFull(new Date().toISOString()) + '\n\n' + body + '\n';
+  download(new Blob([text], {type:'text/plain;charset=utf-8'}), `번역기록_${stamp()}.txt`);
+  toast('텍스트 파일을 내려받았어요. 내 파일 앱의 다운로드 폴더에 있어요.');
+};
+$('#saveAudio').onclick = async () => {
+  const list = sessions.filter(r => r.audio);
+  if (!list.length) return toast('저장할 녹음이 없어요.');
+  toast(`녹음 ${list.length}개를 내려받아요. 여러 파일 받기를 물어보면 허용을 눌러주세요.`);
+  for (const r of [...list].reverse()){ download(r.audio, audioName(r)); await sleep(600); }
+};
+$('#clearAll').onclick = async () => {
+  if (live) return toast('듣기를 멈춘 뒤에 지울 수 있어요.');
+  if (!sessions.length) return toast('지울 기록이 없어요.');
+  if (!confirm('대화 기록과 녹음을 모두 지울까요? 되돌릴 수 없어요.')) return;
+  stopPlayback();
+  await dbClear();
+  sessions = []; last.them = null; last.me = null;
+  resetBox('them'); resetBox('me'); renderLog(); setUI();
+  toast('기록을 모두 지웠어요.');
+};
+
+/* 버튼 연결 */
+$('#themBtn').onclick = () => (live && live.who === 'them') ? stop() : start('them');
+$('#meBtn').onclick = () => (live && live.who === 'me') ? stop() : start('me');
+$('#replayBtn').onclick = () => playing === 'replay' ? stopPlayback() : replay();
+$('#speakBtn').onclick = () => playing === 'speak' ? stopPlayback() : speakMine();
+
+/* 언어 선택 */
+function fillSelects(){
+  for (const [sel, key] of [['#theirLang','their'], ['#myLang','my']]){
+    const el = $(sel); el.innerHTML = '';
+    for (const l of LANGS){ const o = document.createElement('option'); o.value = l.id; o.textContent = l.name; el.append(o); }
+    el.value = L(S[key]).id;
+    el.onchange = () => { S[key] = el.value; saveS(); };
+  }
+}
+$('#swap').onclick = () => {
+  [S.their, S.my] = [S.my, S.their]; saveS();
+  $('#theirLang').value = S.their; $('#myLang').value = S.my;
+};
+
+/* 설정 창 */
+$('#openSettings').onclick = () => {
+  $('#optRecord').checked = !!S.record;
+  document.querySelectorAll('input[name=replay]').forEach(r => r.checked = r.value === S.replay);
+  $('#optRate').value = S.rate; $('#rateVal').textContent = Number(S.rate).toFixed(1) + '배';
+  $('#optKey').value = S.apiKey || '';
+  $('#settings').showModal();
+};
+$('#optRecord').onchange = e => { S.record = e.target.checked; saveS(); };
+document.querySelectorAll('input[name=replay]').forEach(r => r.onchange = () => { if (r.checked){ S.replay = r.value; saveS(); } });
+$('#optRate').oninput = e => { S.rate = Number(e.target.value); $('#rateVal').textContent = S.rate.toFixed(1) + '배'; saveS(); };
+$('#optKey').onchange = e => { S.apiKey = e.target.value.trim(); saveS(); };
+$('#closeSettings').onclick = () => $('#settings').close();
+
+/* 온라인 / 오프라인 */
+window.addEventListener('online', setUI);
+window.addEventListener('offline', () => { if (live){ stop(); toast('인터넷이 끊겨서 듣기를 멈췄어요.'); } setUI(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && live) stop(); });
+
+/* 시작 */
+(async () => {
+  fillSelects();
+  resetBox('them'); resetBox('me');
+  const notes = [];
+  if (!window.isSecureContext) notes.push('https 주소로 열어야 마이크를 쓸 수 있어요.');
+  if (!SR) notes.push('이 브라우저는 음성인식이 안 돼요. 안드로이드 크롬으로 열어주세요.');
+  if (notes.length){ $('#notice').textContent = notes.join(' '); $('#notice').hidden = false; }
+  await dbOpen();
+  sessions = ((await dbAll()) || []).sort((a, b) => b.id - a.id);
+  last.them = sessions.find(r => r.who === 'them') || null;
+  last.me = sessions.find(r => r.who === 'me') || null;
+  renderLog(); setUI();
+})();
+})();
+</script>
+</body>
+</html>
